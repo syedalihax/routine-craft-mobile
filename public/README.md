@@ -1,0 +1,1 @@
+This folder contains static files copied into the Expo web export. The RoutineCraft Open Graph preview is generated from the source logo by `npm run generate:brand-assets`.
