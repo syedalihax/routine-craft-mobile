@@ -6,6 +6,7 @@ const htmlPath = path.join(outputDir, 'index.html');
 const socialImageSource = path.join(__dirname, '..', 'public', 'og-routinecraft.png');
 const socialImageOutput = path.join(outputDir, 'og-routinecraft.png');
 const faviconSource = path.join(__dirname, '..', 'assets', 'favicon.png');
+const apkSource = path.join(__dirname, '..', 'public', 'RoutineCraft.apk');
 const socialImageUrl = 'https://routine-craft-eta.vercel.app/og-routinecraft.png';
 
 if (!fs.existsSync(htmlPath)) {
@@ -14,6 +15,9 @@ if (!fs.existsSync(htmlPath)) {
 
 fs.copyFileSync(socialImageSource, socialImageOutput);
 fs.copyFileSync(faviconSource, path.join(outputDir, 'favicon.png'));
+if (fs.existsSync(apkSource)) {
+  fs.copyFileSync(apkSource, path.join(outputDir, 'RoutineCraft.apk'));
+}
 
 const html = fs.readFileSync(htmlPath, 'utf8');
 const metadata = [

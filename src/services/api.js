@@ -248,6 +248,10 @@ export const authAPI = {
   updatePreferences: (preferences) => api.put('/auth/preferences', preferences),
 };
 
+export const appVersionAPI = {
+  getLatest: () => api.get('/app-version'),
+};
+
 export const categoriesAPI = {
   getAll: (includeArchived = false) => api.get(`/categories?includeArchived=${includeArchived}`),
   getAnalytics: (id) => api.get(`/categories/${id}/analytics`),

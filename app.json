@@ -3,6 +3,13 @@
     "name": "RoutineCraft",
     "slug": "routine-craft",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/0759f4dc-a1c1-4e53-bee8-47874da5517d",
+      "checkAutomatically": "NEVER"
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "splash": {
@@ -30,7 +37,8 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      "expo-updates"
     ],
     "extra": {
       "eas": {
