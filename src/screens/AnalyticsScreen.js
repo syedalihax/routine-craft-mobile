@@ -15,6 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import { analyticsAPI } from '../services/api';
 import Header from '../components/Header';
 import ConsistencyBarChart from '../components/ConsistencyBarChart';
+import ScrollAwarenessCard from '../components/ScrollAwarenessCard';
 
 export default function AnalyticsScreen() {
   const { themeMode } = useAuth();
@@ -122,6 +123,8 @@ export default function AnalyticsScreen() {
             );
           })}
         </View>
+
+        <ScrollAwarenessCard timeframe={timeframe} refreshing={refreshing} />
 
         {/* Month Selector for Weekly view */}
         {timeframe === 'WEEKLY' && (

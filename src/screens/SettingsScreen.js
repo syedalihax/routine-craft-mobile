@@ -8,12 +8,33 @@ import {
   TextInput,
   ScrollView,
   Alert,
+  AppState,
+  PermissionsAndroid,
+  Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 import { useAuth } from '../context/AuthContext';
 import { getApiBaseUrl, setApiBaseUrl } from '../services/api';
+import {
+  getScrollMonitorState,
+  isScrollMonitorAvailable,
+  openScrollAccessibilitySettings,
+  openScrollNotificationSettings,
+  openScrollOverlaySettings,
+  setScrollMonitorConfig,
+} from '../../modules/routine-craft-monitor';
 import Header from '../components/Header';
+
+const SOCIAL_APPS = [
+  { packageName: 'com.instagram.android', label: 'Instagram', icon: 'photo-camera' },
+  { packageName: 'com.zhiliaoapp.musically', label: 'TikTok', icon: 'music-video' },
+  { packageName: 'com.google.android.youtube', label: 'YouTube', icon: 'smart-display' },
+  { packageName: 'com.facebook.katana', label: 'Facebook', icon: 'people' },
+  { packageName: 'com.snapchat.android', label: 'Snapchat', icon: 'camera-alt' },
+  { packageName: 'com.twitter.android', label: 'X', icon: 'tag' },
+  { packageName: 'com.reddit.frontpage', label: 'Reddit', icon: 'forum' },
+];
 
 export default function SettingsScreen() {
   const { user, themeMode, updatePreferences, logout } = useAuth();
@@ -32,6 +53,83 @@ export default function SettingsScreen() {
   // Backend URL configuration
   const [backendUrl, setBackendUrl] = useState(getApiBaseUrl());
   const [savingUrl, setSavingUrl] = useState(false);
+  const [monitorState, setMonitorState] = useState({
+    supported: false,
+    enabled: false,
+    floatingEnabled: false,
+    trackedPackages: [],
+    accessibilityEnabled: false,
+    overlayPermission: false,
+    notificationsEnabled: false,
+  });
+
+  const refreshMonitorState = async () => {
+    const state = await getScrollMonitorState();
+    setMonitorState(state);
+  };
+
+  useEffect(() => {
+    refreshMonitorState();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshMonitorState();
+    });
+    return () => subscription.remove();
+  }, []);
+
+  const saveMonitorState = async (nextState) => {
+    setMonitorState(nextState);
+    try {
+      await setScrollMonitorConfig(
+        nextState.enabled,
+        nextState.floatingEnabled,
+        nextState.trackedPackages
+      );
+      await refreshMonitorState();
+    } catch (err) {
+      Alert.alert('Error', 'Could not update scrolling awareness settings.');
+    }
+  };
+
+  const handleMonitorToggle = async (enabled) => {
+    const nextState = { ...monitorState, enabled };
+    await saveMonitorState(nextState);
+    if (!enabled) return;
+
+    if (Number(Platform.Version) >= 33 && PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS) {
+      await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+    }
+
+    Alert.alert(
+      'Allow scrolling awareness',
+      'Android requires Accessibility access to detect selected-app sessions and scroll events. RoutineCraft does not read screen text or capture screenshots. Usage totals stay on this device. Turn on RoutineCraft Scroll Awareness in Android settings to continue.',
+      [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Open settings', onPress: openScrollAccessibilitySettings },
+      ]
+    );
+  };
+
+  const handleFloatingToggle = async (floatingEnabled) => {
+    const nextState = { ...monitorState, floatingEnabled };
+    await saveMonitorState(nextState);
+    if (floatingEnabled && !monitorState.overlayPermission) {
+      Alert.alert(
+        'Allow floating counter',
+        'Android needs permission to show the small draggable counter over other apps.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Open settings', onPress: openScrollOverlaySettings },
+        ]
+      );
+    }
+  };
+
+  const handleTrackedAppToggle = (packageName, selected) => {
+    const trackedPackages = selected
+      ? [...monitorState.trackedPackages, packageName]
+      : monitorState.trackedPackages.filter((item) => item !== packageName);
+    saveMonitorState({ ...monitorState, trackedPackages });
+  };
 
   const handleThemeChange = async (mode) => {
     try {
@@ -160,6 +258,110 @@ export default function SettingsScreen() {
           )}
         </View>
 
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Scrolling Awareness</Text>
+        <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {Platform.OS !== 'android' ? (
+            <Text style={[styles.apiUrlHint, { color: colors.textSecondary }]}>
+              App usage and floating scroll counters are available in the Android app only.
+            </Text>
+          ) : !isScrollMonitorAvailable() ? (
+            <Text style={[styles.apiUrlHint, { color: colors.textSecondary }]}>
+              A native Android build is required for scrolling awareness. This feature is not available in Expo Go.
+            </Text>
+          ) : (
+            <>
+              <View style={styles.optionRow}>
+                <MaterialIcons name="query-stats" size={22} color={colors.textSecondary} />
+                <View style={styles.awarenessOptionInfo}>
+                  <Text style={[styles.optionLabel, styles.awarenessLabel, { color: colors.text }]}>Enable scroll counter</Text>
+                  <Text style={[styles.awarenessHint, { color: colors.textSecondary }]}>Record selected-app time and scroll events</Text>
+                </View>
+                <Switch
+                  value={monitorState.enabled}
+                  onValueChange={handleMonitorToggle}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+
+              <Text style={[styles.apiUrlHint, { color: colors.textSecondary, paddingTop: 0 }]}>
+                Android Accessibility access is required. Only selected app names, session duration, and scroll-event totals are stored locally; screen content is not read.
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.permissionRow, { borderTopColor: colors.border }]}
+                onPress={openScrollAccessibilitySettings}
+                accessibilityRole="button"
+              >
+                <MaterialIcons
+                  name={monitorState.accessibilityEnabled ? 'check-circle' : 'accessibility-new'}
+                  size={20}
+                  color={monitorState.accessibilityEnabled ? colors.primary : colors.accent}
+                />
+                <Text style={[styles.permissionText, { color: colors.text }]}>
+                  {monitorState.accessibilityEnabled ? 'Accessibility access enabled' : 'Grant Accessibility access'}
+                </Text>
+                <MaterialIcons name="open-in-new" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+
+              {monitorState.enabled && (
+                <>
+                  {!monitorState.notificationsEnabled && (
+                    <TouchableOpacity
+                      style={[styles.permissionRow, { borderTopColor: colors.border }]}
+                      onPress={openScrollNotificationSettings}
+                    >
+                      <MaterialIcons name="notifications-off" size={20} color={colors.accent} />
+                      <Text style={[styles.permissionText, { color: colors.text }]}>Allow timer notifications</Text>
+                      <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  )}
+
+                  <View style={[styles.optionRow, { borderTopWidth: 1, borderTopColor: colors.border }]}>
+                    <MaterialIcons name="picture-in-picture-alt" size={22} color={colors.textSecondary} />
+                    <View style={styles.awarenessOptionInfo}>
+                      <Text style={[styles.optionLabel, styles.awarenessLabel, { color: colors.text }]}>Floating scroll counter</Text>
+                      <Text style={[styles.awarenessHint, { color: colors.textSecondary }]}>Drag it anywhere while scrolling</Text>
+                    </View>
+                    <Switch
+                      value={monitorState.floatingEnabled}
+                      onValueChange={handleFloatingToggle}
+                      trackColor={{ false: colors.border, true: colors.primary }}
+                      thumbColor="#FFFFFF"
+                    />
+                  </View>
+                  {monitorState.floatingEnabled && !monitorState.overlayPermission && (
+                    <TouchableOpacity
+                      style={[styles.permissionRow, { borderTopColor: colors.border }]}
+                      onPress={openScrollOverlaySettings}
+                    >
+                      <MaterialIcons name="open-in-new" size={20} color={colors.accent} />
+                      <Text style={[styles.permissionText, { color: colors.text }]}>Grant overlay permission</Text>
+                      <MaterialIcons name="chevron-right" size={20} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  )}
+
+                  <Text style={[styles.appSelectTitle, { color: colors.textSecondary, borderTopColor: colors.border }]}>
+                    APPS TO TRACK
+                  </Text>
+                  {SOCIAL_APPS.map((app) => (
+                    <View key={app.packageName} style={[styles.appOptionRow, { borderTopColor: colors.border }]}>
+                      <MaterialIcons name={app.icon} size={20} color={colors.textSecondary} />
+                      <Text style={[styles.optionLabel, { color: colors.text }]}>{app.label}</Text>
+                      <Switch
+                        value={monitorState.trackedPackages.includes(app.packageName)}
+                        onValueChange={(selected) => handleTrackedAppToggle(app.packageName, selected)}
+                        trackColor={{ false: colors.border, true: colors.primary }}
+                        thumbColor="#FFFFFF"
+                      />
+                    </View>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+        </View>
+
         {/* Section: Backend API Configuration (For mobile testing) */}
         <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
           Backend API Connection
@@ -265,6 +467,47 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     marginLeft: 12,
+  },
+  awarenessOptionInfo: {
+    flex: 1,
+  },
+  awarenessLabel: {
+    marginLeft: 12,
+  },
+  awarenessHint: {
+    fontSize: 11,
+    lineHeight: 15,
+    marginLeft: 12,
+    marginTop: 2,
+  },
+  permissionRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+  },
+  permissionText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    marginLeft: 10,
+  },
+  appSelectTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+    borderTopWidth: 1,
+  },
+  appOptionRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
   },
   timeRow: {
     flexDirection: 'row',

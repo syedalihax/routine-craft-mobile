@@ -1,0 +1,4 @@
+<resources>
+  <string name="scroll_awareness_service_name">RoutineCraft Scroll Awareness</string>
+  <string name="scroll_awareness_service_description">With your permission, records time and scroll events only in social apps you select. Screen content is not read or stored.</string>
+</resources>
