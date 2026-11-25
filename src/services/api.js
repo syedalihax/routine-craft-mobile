@@ -246,6 +246,9 @@ export const authAPI = {
   refresh: refreshAuthTokens,
   getProfile: () => api.get('/auth/me'),
   updatePreferences: (preferences) => api.put('/auth/preferences', preferences),
+  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
+  resetPassword: (email, code, newPassword) =>
+    api.post('/auth/reset-password', { email, code, newPassword }),
 };
 
 export const appVersionAPI = {
